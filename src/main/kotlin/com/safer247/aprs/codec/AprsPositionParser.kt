@@ -1,5 +1,9 @@
 package org.example.com.safer247.aprs.codec
 
+import java.time.Instant
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
+
 /*
  * RadioChat APRS — Android APRS client for KISS BLE radios,
  * DireWolf (KISS TCP) and APRS-IS.
@@ -40,39 +44,62 @@ object AprsPositionParser {
         """^([!=])([\\\/])(.{4})(.{4})(.)(.)(.)(.)(.*)"""
     )
 
+    private val utcHmsFormatter = DateTimeFormatter
+        .ofPattern("HHmmss")
+        .withZone(ZoneOffset.UTC)
+
+
+    /**
+     * @param latitude
+     * @param longitude
+     * @param symbol mandatory icon code for APRS ("/>" - vehicle/mobile responder for safer247)
+    * @param comment the message that a responder sends
+    * */
     data class ParsedPosition(
         val latitude: Double,
         val longitude: Double,
         val symbol: String,
-        val comment: String
+        val comment: String,
+        val timestamp: String? = null
     )
 
+    // TODO: consider using compressed timestamp format in safer247
+
+    /**
+     * Parses an APRS position from the info field of a packet.
+     * @param infoField the info field of an APRS packet (after the colon)
+     * @return ParsedPosition if successful, null otherwise
+     * */
     fun parse(infoField: String): ParsedPosition? {
         val info = infoField.trimEnd('\r', '\n')
         if (info.isEmpty()) return null
 
-        parseUncompressed(info)?.let { return it }
-        parseCompressed(info)?.let { return it }
-
         // Some beacons carry a timestamp before the position (/HHMMSSz or @DDHHMMz)
-        val withoutTs = stripLeadingTimestamp(info)
-        if (withoutTs != info) {
-            parseUncompressed(withoutTs)?.let { return it }
-            parseCompressed(withoutTs)?.let { return it }
-        }
+        val (ts, withoutTs) = stripLeadingTimestamp(info)
+
+        parseUncompressed(withoutTs)?.let { return it.copy(timestamp = ts) }
+        parseCompressed(withoutTs)?.let { return it.copy(timestamp = ts) }
+
         return null
     }
 
-    private fun stripLeadingTimestamp(info: String): String {
+    /**
+     * Strips the timestamp from the latitude and longitude if present.
+     * @param info the info field of an APRS packet (after the colon)
+     * @return a Pair of the timestamp (if present) and the remaining info field.
+     *
+     * For ex: "/064215h0755.12N/12519.72E>Hi"
+     * ts = "064215h", info = "!0755.12N/12519.72E>Hi"
+     * */
+    private fun stripLeadingTimestamp(info: String): Pair<String?, String> {
         // /, @ + 7 timestamp chars + the rest of the position
         if (info.length > 8 && (info[0] == '/' || info[0] == '@')) {
             val ts = info.substring(1, 8)
-            if (ts.all { it.isDigit() || it == 'z' || it == 'h' || it == '/' }) {
-                // Re-inject the position type as '!' so the regex can be reused
-                return "!" + info.substring(8)
+            if (ts.substring(0,6).all { it.isDigit() } && ts[6] in setOf('z', 'h', '/')) {
+                return ts to ("!" + info.substring(8))
             }
         }
-        return info
+        return null to info
     }
 
     private fun parseUncompressed(info: String): ParsedPosition? {
@@ -99,8 +126,7 @@ object AprsPositionParser {
     }
 
     /** DDMM.mm + hemisphere → decimal degrees. */
-    fun dmToDecimal(dm: String, hemisphere: String): Double {
-        val dot = dm.indexOf('.')
+    private fun dmToDecimal(dm: String, hemisphere: String): Double {
         val degDigits = if (dm.length >= 8) 3 else 2 // lon=DDDMM.mm, lat=DDMM.mm
         val degrees = dm.substring(0, degDigits).toInt()
         val minutes = dm.substring(degDigits).toDouble()
@@ -125,20 +151,33 @@ object AprsPositionParser {
         return -180.0 + v / 190463.0
     }
 
-    /** Encodes lat/lon as APRS plain text. `=` = messaging-capable station; `!` = not. */
+
+
+    /** Encodes timestamp and lat/lon as APRS plain text.
+     *
+     * @param timestamp defaults to now (UTC)
+     * @param latitude in decimal degrees
+     * @param longitude in decimal degrees
+     * @param symbol APRS symbol (table+code, e.g., "/>")
+     * @param comment optional comment to include after the position | message body in safer247
+     *
+     * Returns a string in the format: `/HHMMSShDDMM.mmN/Ssymbol[0]DDDMM.mmE/Wsymbol[1]comment`
+     * */
     fun formatUncompressed(
         latitude: Double,
         longitude: Double,
-        symbol: String = "/$",
+        symbol: String = "/>",
         comment: String = "",
-        messagingCapable: Boolean = true
+        timestamp: Instant = Instant.now()
     ): String {
         val table = symbol.getOrElse(0) { '/' }
-        val code = symbol.getOrElse(1) { '$' }
+        val code = symbol.getOrElse(1) { '>' }
         val lat = decimalToDm(latitude, isLat = true)
         val lon = decimalToDm(longitude, isLat = false)
-        val type = if (messagingCapable) '=' else '!'
-        return "$type$lat$table$lon$code${comment.take(43)}"
+        val ts = "${utcHmsFormatter.format(timestamp)}h"
+
+        // TODO: consider if comment here will be truncated
+        return "/$ts$lat$table$lon$code${comment}"
     }
 
     private fun decimalToDm(value: Double, isLat: Boolean): String {

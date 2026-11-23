@@ -43,7 +43,8 @@ sealed class AprsPacket {
         val latitude: Double,
         val longitude: Double,
         val symbol: String,
-        val comment: String
+        val comment: String,
+        val timestamp: String? = null
     ) : AprsPacket()
 
     data class Other(
