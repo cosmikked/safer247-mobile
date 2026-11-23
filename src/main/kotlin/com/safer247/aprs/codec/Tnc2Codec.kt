@@ -75,48 +75,4 @@ object Tnc2Codec {
             info = info
         )
     }
-
-    /**
-     * APRS third-party packet: the Info Field starts with `}` and carries
-     * another TNC2 frame (`}OTA>APRS,TCPIP*::CALL :text`).
-     * Returns the innermost frame, or null when there is no `}`.
-     */
-    fun unwrapThirdParty(info: String): Frame? {
-        var current = info.trimStart()
-        if (!current.startsWith('}')) return null
-        var innermost: Frame? = null
-        var depth = 0
-        while (current.startsWith('}') && depth < 4) {
-            val frame = parse(current.substring(1)) ?: break
-            innermost = frame
-            current = frame.info.trimStart()
-            depth++
-        }
-        return innermost
-    }
-
-    /** Effective source / dest / info after stripping `}` wrappers. */
-    fun effective(source: String, destination: String, info: String): Frame {
-        val inner = unwrapThirdParty(info) ?: return Frame(
-            source = source,
-            destination = destination,
-            digipeaters = emptyList(),
-            info = info
-        )
-        return inner
-    }
-
-    /** Avoids loops: do not gate packets that already came from the Internet. */
-    fun shouldGateToIs(frame: Frame): Boolean {
-        val path = (listOf(frame.destination) + frame.digipeaters)
-            .joinToString(",")
-            .uppercase()
-        if (path.contains("TCPIP") || path.contains("TCPXX")) return false
-        if (path.contains(",QA") || path.startsWith("QA") || Regex(",QA[A-Z]").containsMatchIn(path)) {
-            return false
-        }
-        // Third-party / already gated
-        if (frame.info.startsWith('}')) return false
-        return frame.source.isNotBlank() && frame.info.isNotBlank()
-    }
 }

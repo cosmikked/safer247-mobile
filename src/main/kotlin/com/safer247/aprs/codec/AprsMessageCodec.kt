@@ -34,11 +34,9 @@ object AprsMessageCodec {
      * @param text message body (max. ~67 chars recommended on RF)
      * @param messageId optional, to request an ACK (`{01`)
      */
-    fun build(addressee: String, text: String, messageId: String? = null): String {
+    fun build(addressee: String, text: String): String {
         val padded = padAddressee(addressee)
-        // TODO: consider the max length of the message body based on safer247 payload types
-        val body = text.take(67)
-        return ":$padded:$body"
+        return ":$padded:$text"
     }
 
     /**

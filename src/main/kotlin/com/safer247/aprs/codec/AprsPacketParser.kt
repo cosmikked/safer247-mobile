@@ -20,7 +20,6 @@ package org.example.com.safer247.aprs.codec
  */
 
 
-import org.example.com.safer247.aprs.ax25.Ax25Fcs
 import org.example.com.safer247.aprs.ax25.Ax25Frame
 import org.example.com.safer247.aprs.model.AprsPacket
 
@@ -30,106 +29,106 @@ import org.example.com.safer247.aprs.model.AprsPacket
 class AprsPacketParser(
     private val myCallsign: () -> String
 ) {
-    /** Digi path learned from RX frames (used on TX). */
-    var learnedDigipeaters: List<String> = emptyList()
-        private set
+//    /** Digi path learned from RX frames (used on TX). */
+//    var learnedDigipeaters: List<String> = emptyList()
+//        private set
 
-    fun parseKissPayload(payload: ByteArray): AprsPacket? {
-        classify(payload)?.let { packet ->
-            if (packet !is AprsPacket.Other) return packet
-        }
-        // Some TNCs append the FCS (2 CRC bytes); retry without them.
-        if (payload.size > 18) {
-            classify(payload.copyOf(payload.size - 2))?.let { packet ->
-                if (packet !is AprsPacket.Other) return packet
-            }
-        }
-        return classify(payload)
-    }
-
-    private fun classify(payload: ByteArray): AprsPacket? {
-        val ax25 = Ax25Frame.parse(payload) ?: return null
-        if (ax25.digipeaters.isNotEmpty()) {
-            learnedDigipeaters = ax25.digipeaters
-        }
-        val info = ax25.infoText
-        if (info.isEmpty()) return null
-
-        val inner = Tnc2Codec.effective(ax25.source, ax25.destination, info)
-        val source = inner.source
-        val dest = inner.destination
-        val payload = inner.info
-
-        AprsMessageCodec.parse(payload)?.let { msg ->
-            return AprsPacket.TextMessage(
-                sourceCall = source,
-                destCall = dest,
-                rawInfo = payload,
-                addressee = msg.addressee,
-                messageText = msg.text,
-                messageId = msg.messageId
-            )
-        }
-
-        // Bare ACK/REJ over KISS (`ack01` to the AX.25 dest, without `:CALL:`).
-        AprsMessageCodec.extractAck(payload)?.let { ack ->
-            return AprsPacket.TextMessage(
-                sourceCall = source,
-                destCall = dest,
-                rawInfo = payload,
-                addressee = dest,
-                messageText = payload.trim().trimStart(':').trim(),
-                messageId = ack.messageId.ifBlank { null }
-            )
-        }
-
-        AprsPositionParser.parse(payload)?.let { pos ->
-            return AprsPacket.Position(
-                sourceCall = source,
-                destCall = dest,
-                rawInfo = payload,
-                latitude = pos.latitude,
-                longitude = pos.longitude,
-                symbol = pos.symbol,
-                comment = pos.comment
-            )
-        }
-
-
-        // UI addressed to the callsign (AX.25 dest = me), without the APRS message ':'.
-        if (isDirectedToStation(dest, myCallsign())) {
-            return AprsPacket.TextMessage(
-                sourceCall = source,
-                destCall = dest,
-                rawInfo = payload,
-                addressee = dest,
-                messageText = payload.trim(),
-                messageId = null
-            )
-        }
-
-        return AprsPacket.Other(
-            sourceCall = ax25.source,
-            destCall = ax25.destination,
-            rawInfo = info
-        )
-    }
-
-    private fun isDirectedToStation(ax25Dest: String, myCall: String): Boolean {
-        if (myCall.isBlank() || myCall.equals("N0CALL", ignoreCase = true)) return false
-        if (isGenericAprsDestination(ax25Dest)) return false
-        return AprsMessageCodec.isAddressedTo(ax25Dest, myCall)
-    }
-
-    private fun isGenericAprsDestination(dest: String): Boolean {
-        val u = dest.uppercase().trim()
-        val base = u.substringBefore('-')
-        if (base.startsWith("AP") && base.length >= 3) return true
-        if (base.startsWith("WIDE") || base.startsWith("RELAY") || base.startsWith("TRACE")) {
-            return true
-        }
-        return base in GENERIC_DESTS
-    }
+//    fun parseKissPayload(payload: ByteArray): AprsPacket? {
+//        classify(payload)?.let { packet ->
+//            if (packet !is AprsPacket.Other) return packet
+//        }
+//        // Some TNCs append the FCS (2 CRC bytes); retry without them.
+//        if (payload.size > 18) {
+//            classify(payload.copyOf(payload.size - 2))?.let { packet ->
+//                if (packet !is AprsPacket.Other) return packet
+//            }
+//        }
+//        return classify(payload)
+//    }
+//
+//    private fun classify(payload: ByteArray): AprsPacket? {
+//        val ax25 = Ax25Frame.parse(payload) ?: return null
+//        if (ax25.digipeaters.isNotEmpty()) {
+//            learnedDigipeaters = ax25.digipeaters
+//        }
+//        val info = ax25.infoText
+//        if (info.isEmpty()) return null
+//
+//        val inner = Tnc2Codec.effective(ax25.source, ax25.destination, info)
+//        val source = inner.source
+//        val dest = inner.destination
+//        val payload = inner.info
+//
+//        AprsMessageCodec.parse(payload)?.let { msg ->
+//            return AprsPacket.TextMessage(
+//                sourceCall = source,
+//                destCall = dest,
+//                rawInfo = payload,
+//                addressee = msg.addressee,
+//                messageText = msg.text,
+//                messageId = msg.messageId
+//            )
+//        }
+//
+//        // Bare ACK/REJ over KISS (`ack01` to the AX.25 dest, without `:CALL:`).
+//        AprsMessageCodec.extractAck(payload)?.let { ack ->
+//            return AprsPacket.TextMessage(
+//                sourceCall = source,
+//                destCall = dest,
+//                rawInfo = payload,
+//                addressee = dest,
+//                messageText = payload.trim().trimStart(':').trim(),
+//                messageId = ack.messageId.ifBlank { null }
+//            )
+//        }
+//
+//        AprsPositionParser.parse(payload)?.let { pos ->
+//            return AprsPacket.Position(
+//                sourceCall = source,
+//                destCall = dest,
+//                rawInfo = payload,
+//                latitude = pos.latitude,
+//                longitude = pos.longitude,
+//                symbol = pos.symbol,
+//                comment = pos.comment
+//            )
+//        }
+//
+//
+//        // UI addressed to the callsign (AX.25 dest = me), without the APRS message ':'.
+//        if (isDirectedToStation(dest, myCallsign())) {
+//            return AprsPacket.TextMessage(
+//                sourceCall = source,
+//                destCall = dest,
+//                rawInfo = payload,
+//                addressee = dest,
+//                messageText = payload.trim(),
+//                messageId = null
+//            )
+//        }
+//
+//        return AprsPacket.Other(
+//            sourceCall = ax25.source,
+//            destCall = ax25.destination,
+//            rawInfo = info
+//        )
+//    }
+//
+//    private fun isDirectedToStation(ax25Dest: String, myCall: String): Boolean {
+//        if (myCall.isBlank() || myCall.equals("N0CALL", ignoreCase = true)) return false
+//        if (isGenericAprsDestination(ax25Dest)) return false
+//        return AprsMessageCodec.isAddressedTo(ax25Dest, myCall)
+//    }
+//
+//    private fun isGenericAprsDestination(dest: String): Boolean {
+//        val u = dest.uppercase().trim()
+//        val base = u.substringBefore('-')
+//        if (base.startsWith("AP") && base.length >= 3) return true
+//        if (base.startsWith("WIDE") || base.startsWith("RELAY") || base.startsWith("TRACE")) {
+//            return true
+//        }
+//        return base in GENERIC_DESTS
+//    }
 
     /**
      * Builds the AX.25 payload for an outgoing message.
@@ -139,12 +138,18 @@ class AprsPacketParser(
     fun buildOutgoingMessage(
         toCallsign: String, // addressee, not the AX.25 dest (which is always APRS)
         text: String,
-        messageId: String? = null, // for matching ACK/REJ, not required in safer247
         digipeaters: List<String> = emptyList(),
-        includeFcs: Boolean = false
+        positionEnabled: Boolean = true
     ): ByteArray {
         val myCall = myCallsign().ifBlank { "N0CALL" }
-        val info = AprsMessageCodec.build(toCallsign, text, messageId)
+
+        if (positionEnabled) {
+
+        }
+
+
+
+        val info = AprsMessageCodec.build(toCallsign, text)
             .toByteArray(Charsets.ISO_8859_1)
         var frame = Ax25Frame.buildUiFrame(
             destination = "APRS",
@@ -152,20 +157,7 @@ class AprsPacketParser(
             info = info,
             digipeaters = digipeaters
         )
-        if (includeFcs) {
-            frame = Ax25Fcs.appendFcs(frame)
-        }
+
         return frame
-    }
-
-    fun isMessageForMe(packet: AprsPacket.TextMessage): Boolean {
-        return AprsMessageCodec.isAddressedTo(packet.addressee, myCallsign())
-    }
-
-    companion object {
-        private val GENERIC_DESTS = setOf(
-            "BEACON", "ID", "CQ", "QST", "MAIL", "ALL", "SP", "TEST", "GPS",
-            "APRS", "SKY", "AIR"
-        )
     }
 }
