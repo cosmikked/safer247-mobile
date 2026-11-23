@@ -137,9 +137,9 @@ class AprsPacketParser(
      * Para DireWolf: WIDE1-1,WIDE2-1.
      */
     fun buildOutgoingMessage(
-        toCallsign: String,
+        toCallsign: String, // addressee, not the AX.25 dest (which is always APRS)
         text: String,
-        messageId: String? = null,
+        messageId: String? = null, // for matching ACK/REJ, not required in safer247
         digipeaters: List<String> = emptyList(),
         includeFcs: Boolean = false
     ): ByteArray {
