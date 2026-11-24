@@ -1,4 +1,4 @@
-package org.example.com.safer247.aprs.model
+package com.safer247.aprs.model
 
 /*
  * RadioChat APRS — Android APRS client for KISS BLE radios,
@@ -19,21 +19,36 @@ package org.example.com.safer247.aprs.model
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+import com.safer247.aprs.protocol.GeoPoint
+import com.safer247.aprs.protocol.Payload
+
 /**
- * Result of parsing an AX.25/APRS frame (after stripping the KISS wrapper).
+ * Result of parsing a received AX.25/APRS frame.
  */
 sealed class AprsPacket {
     abstract val sourceCall: String
     abstract val destCall: String
     abstract val rawInfo: String
 
+    /** Valid SAFER 247 packet (either GPS position envelope or `:ALL      :` no-GPS fallback). */
+    data class Safer247(
+        override val sourceCall: String,
+        override val destCall: String,
+        override val rawInfo: String,
+        val digipeaters: List<String> = emptyList(),
+        val tnc2: String,
+        val payload: Payload,
+        val location: GeoPoint? = null,
+        val timestamp: String? = null,
+        val symbol: String? = null
+    ) : AprsPacket()
+
     data class TextMessage(
         override val sourceCall: String,
         override val destCall: String,
         override val rawInfo: String,
         val addressee: String,
-        val messageText: String,
-        val messageId: String? = null
+        val messageText: String
     ) : AprsPacket()
 
     data class Position(

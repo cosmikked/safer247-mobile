@@ -1,4 +1,4 @@
-package org.example.com.safer247.aprs.codec
+package com.safer247.aprs.codec
 
 import java.time.Instant
 import java.time.ZoneOffset

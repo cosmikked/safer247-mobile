@@ -1,4 +1,4 @@
-package org.example.com.safer247.aprs.protocol
+package com.safer247.aprs.protocol
 
 /**
  * SAFER 247 Layer 4 payload types.

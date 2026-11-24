@@ -1,12 +1,12 @@
-package org.example.com.safer247.aprs
+package com.safer247.aprs
 
-import org.example.com.safer247.aprs.ax25.Ax25Frame
-import org.example.com.safer247.aprs.codec.AprsMessageCodec
-import org.example.com.safer247.aprs.codec.AprsPositionParser
-import org.example.com.safer247.aprs.codec.Tnc2Codec
-import org.example.com.safer247.aprs.protocol.EncodedTxPacket
-import org.example.com.safer247.aprs.protocol.GeoPoint
-import org.example.com.safer247.aprs.protocol.Payload
+import com.safer247.aprs.ax25.Ax25Frame
+import com.safer247.aprs.codec.AprsMessageCodec
+import com.safer247.aprs.codec.AprsPositionParser
+import com.safer247.aprs.codec.Tnc2Codec
+import com.safer247.aprs.protocol.EncodedTxPacket
+import com.safer247.aprs.protocol.GeoPoint
+import com.safer247.aprs.protocol.Payload
 import java.security.SecureRandom
 import java.time.Instant
 
@@ -24,6 +24,29 @@ class AprsTx(
     private val digipeaters: List<String> = emptyList(),
     private val symbol: String = DEFAULT_SYMBOL
 ) {
+
+    companion object {
+        const val DEFAULT_SOURCE = "S247"
+        const val DEFAULT_DESTINATION = "APRS"
+        const val DEFAULT_SYMBOL = "/>"
+        const val FALLBACK_ADDRESSEE = "ALL"
+        const val MAX_INFO_BYTES = 256
+        const val MAX_BODY_LENGTH = 175
+        const val MAX_SENDER_LENGTH = 24
+        const val MAX_REPORT_ID_LENGTH = 12
+
+        private val FORBIDDEN_SENDER_CHARS = setOf('|', '[', ']', '\r', '\n')
+        private const val REPORT_ID_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+        private val secureRandom = SecureRandom()
+
+        /** Generates a compact report ID like `RPT-4A9K2M`. */
+        fun generateReportId(): String = buildString(MAX_REPORT_ID_LENGTH) {
+            append("RPT-")
+            repeat(6) {
+                append(REPORT_ID_ALPHABET[secureRandom.nextInt(REPORT_ID_ALPHABET.length)])
+            }
+        }
+    }
 
     /** Builds `<TAG><BODY>` from a typed [Payload]. */
     fun encodeTag(payload: Payload): String {
@@ -144,25 +167,5 @@ class AprsTx(
         }
     }
 
-    companion object {
-        const val DEFAULT_SOURCE = "S247"
-        const val DEFAULT_DESTINATION = "APRS"
-        const val DEFAULT_SYMBOL = "/>"
-        const val FALLBACK_ADDRESSEE = "ALL"
-        const val MAX_INFO_BYTES = 175
-        const val MAX_SENDER_LENGTH = 24
-        const val MAX_REPORT_ID_LENGTH = 10
 
-        private val FORBIDDEN_SENDER_CHARS = setOf('|', '[', ']', '\r', '\n')
-        private const val REPORT_ID_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-        private val secureRandom = SecureRandom()
-
-        /** Generates a compact report ID like `RPT-4A9K2M`. */
-        fun generateReportId(): String = buildString(MAX_REPORT_ID_LENGTH) {
-            append("RPT-")
-            repeat(6) {
-                append(REPORT_ID_ALPHABET[secureRandom.nextInt(REPORT_ID_ALPHABET.length)])
-            }
-        }
-    }
 }

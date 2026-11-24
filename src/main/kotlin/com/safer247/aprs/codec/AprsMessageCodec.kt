@@ -1,4 +1,4 @@
-package org.example.com.safer247.aprs.codec
+package com.safer247.aprs.codec
 
 /*
  * RadioChat APRS — Android APRS client for KISS BLE radios,

@@ -1,4 +1,4 @@
-package org.example.com.safer247.aprs.protocol
+package com.safer247.aprs.protocol
 
 enum class IncidentType(
     val code: String,

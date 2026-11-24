@@ -1,4 +1,4 @@
-package org.example.com.safer247.aprs.ax25
+package com.safer247.aprs.ax25
 
 /*
  * RadioChat APRS — Android APRS client for KISS BLE radios,
@@ -102,7 +102,7 @@ object Ax25Frame {
     data class ParsedAx25(
         val destination: String,
         val source: String,
-        val digipeaters: List<String>,
+        val digipeaters: List<String> = emptyList(),
         val info: ByteArray
     ) {
         val infoText: String
