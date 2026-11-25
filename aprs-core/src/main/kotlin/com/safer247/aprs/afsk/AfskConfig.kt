@@ -13,7 +13,7 @@ package com.safer247.aprs.afsk
 object AfskConfig {
     const val SAMPLE_RATE_HZ: Int = 48_000
     const val TX_DELAY_UNITS: Int = 60 // 1 = 60 ms of 0x7E preamble flags for VOX
-    const val TX_TAIL_UNITS: Int = 0 // end flags
+    const val TX_TAIL_UNITS: Int = 5 // end flags
     const val TX_MUTE_TAIL_MS: Long = 500L // 500 ms of muting the mic to avoid decoding the TX tail
 
     internal const val PCM16_MAX: Float = 32767.0f

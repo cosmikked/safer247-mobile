@@ -25,4 +25,5 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "safer247-mobile"
+include(":app")
 include(":aprs-core")

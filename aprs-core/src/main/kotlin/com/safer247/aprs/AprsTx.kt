@@ -31,6 +31,7 @@ class AprsTx(
         const val DEFAULT_SYMBOL = "/>"
         const val FALLBACK_ADDRESSEE = "ALL"
         const val MAX_INFO_BYTES = 256
+        const val MAX_PLAIN_MESSAGE_LENGTH = MAX_INFO_BYTES - 11 // ":ALL      :" is 11 bytes
         const val MAX_BODY_LENGTH = 175
         const val MAX_SENDER_LENGTH = 24
         const val MAX_REPORT_ID_LENGTH = 12
@@ -130,6 +131,47 @@ class AprsTx(
             location = location,
             timestamp = timestamp
         )
+        val tnc2 = Tnc2Codec.format(
+            source = source,
+            destination = destination,
+            digipeaters = digipeaters,
+            info = infoField
+        )
+        val ax25Bytes = Ax25Frame.buildUiFrame(
+            destination = destination,
+            source = source,
+            info = infoField.toByteArray(Charsets.ISO_8859_1),
+            digipeaters = digipeaters
+        )
+        return EncodedTxPacket(
+            infoField = infoField,
+            tnc2 = tnc2,
+            ax25Bytes = ax25Bytes
+        )
+    }
+
+    /**
+     * Builds a plain APRS addressed message packet (`SOURCE>DEST::ADDRESSEE:message`)
+     * without SAFER 247 `[TAG|...]` framing. Useful for basic TX testing before full
+     * SAFER 247 payloads are wired.
+     */
+    fun encodePlainMessage(
+        message: String,
+        addressee: String = FALLBACK_ADDRESSEE
+    ): EncodedTxPacket {
+        require(message.isNotBlank()) { "Message must not be blank." }
+        require(message.all { it.code in 0x20..0x7E }) {
+            "Message must be single-line printable ASCII (0x20..0x7E)."
+        }
+
+        val infoField = AprsMessageCodec.build(
+            addressee = addressee,
+            text = message
+        )
+        require(infoField.length <= MAX_INFO_BYTES) {
+            "APRS info field exceeds $MAX_INFO_BYTES bytes (actual: ${infoField.length})."
+        }
+
         val tnc2 = Tnc2Codec.format(
             source = source,
             destination = destination,

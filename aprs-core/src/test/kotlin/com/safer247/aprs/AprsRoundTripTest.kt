@@ -1,9 +1,9 @@
-package org.example.com.safer247.aprs
+package com.safer247.aprs
 
-import org.example.com.safer247.aprs.model.AprsPacket
-import org.example.com.safer247.aprs.protocol.GeoPoint
-import org.example.com.safer247.aprs.protocol.IncidentType
-import org.example.com.safer247.aprs.protocol.Payload
+import com.safer247.aprs.model.AprsPacket
+import com.safer247.aprs.protocol.GeoPoint
+import com.safer247.aprs.protocol.IncidentType
+import com.safer247.aprs.protocol.Payload
 import java.time.Instant
 import kotlin.math.abs
 import kotlin.test.Test
