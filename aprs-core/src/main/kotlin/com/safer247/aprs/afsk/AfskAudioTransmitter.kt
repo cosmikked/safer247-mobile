@@ -14,6 +14,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.time.Instant
 
 /**
@@ -23,6 +24,10 @@ import java.time.Instant
  * - `txDelayUnits = 60` (600 ms of `0x7E` flags for VOX keying)
  * - Serialized single-consumer half-duplex TX via [Mutex]
  * - Optional half-duplex RX mute callback + VOX settle tail ([AfskConfig.TX_MUTE_TAIL_MS])
+ *
+ * =========================================================
+ * play() ... head reaches end ... postDrainMs ... stop()/release() ... muteTailMs ... unmute RX
+ * =========================================================
  */
 class AfskAudioTransmitter(
     val sampleRate: Int = AfskConfig.SAMPLE_RATE_HZ,
@@ -32,7 +37,8 @@ class AfskAudioTransmitter(
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val audioUsage: Int = AudioAttributes.USAGE_MEDIA, // tells Android to use the media volume stream for playback
     private val audioContentType: Int = AudioAttributes.CONTENT_TYPE_SONIFICATION, // tells Android this is a signal tone, not music or speech
-    private val playbackMarginMs: Long = 50L // safety margin to ensure AudioTrack playback completes before executing track.stop() since track.play() waits 10-30 ms to start outputting audio
+    private val playbackMarginMs: Long = 250L,  // safety margin to ensure AudioTrack playback completes before executing track.stop() since track.play() waits 10-30 ms to start outputting audio
+    private val postDrainMs: Long = 40L // additional duration that the
 ) {
     private val modulator = AfskModulator(
         sampleRate = sampleRate,
@@ -87,6 +93,30 @@ class AfskAudioTransmitter(
             setRxMuted = setRxMuted,
             muteTailMs = muteTailMs
         )
+    }
+
+    /**
+     * Encodes a plain APRS addressed message (`S247>APRS::ALL      :<message>`) without
+     * SAFER 247 tag framing and plays it as mono 48 kHz PCM16 AFSK audio via [AudioTrack].
+     *
+     * @return The [EncodedTxPacket] that was modulated and played.
+     */
+    suspend fun transmitPlainMessage(
+        message: String,
+        addressee: String = AprsTx.FALLBACK_ADDRESSEE,
+        setRxMuted: ((Boolean) -> Unit)? = null,
+        muteTailMs: Long = AfskConfig.TX_MUTE_TAIL_MS
+    ): EncodedTxPacket {
+        val encoded = aprsTx.encodePlainMessage(
+            message = message,
+            addressee = addressee
+        )
+        transmitPacket(
+            encoded = encoded,
+            setRxMuted = setRxMuted,
+            muteTailMs = muteTailMs
+        )
+        return encoded
     }
 
     /**
@@ -145,6 +175,7 @@ class AfskAudioTransmitter(
                 // NonCancellable tells the coroutine that this is still active (even if it was cancelled higher up) and that it should still run the code inside (unmute the mic)
                 withContext(NonCancellable) {
                     if (muteTailMs > 0L) {
+                        // mutes the mic for a short duration after the transmission to allow the VOX to release before the receiver listens again
                         delay(muteTailMs)
                     }
                     setRxMuted.invoke(false)
@@ -180,8 +211,9 @@ class AfskAudioTransmitter(
             // Start playback in the speaker and wait for the duration of the audio plus a safety margin to ensure playback completes before stopping the track
             track.play()
             val durationMs = (bufferSamples.size * 1000L) / sampleRate
-            delay(durationMs + playbackMarginMs)
+            awaitPlaybackComplete(track, bufferSamples.size, durationMs)
         } finally {
+            android.util.Log.d("AfskTx", "head=${track.playbackHeadPosition} size=${bufferSamples.size}")
             // Stop playback and release the AudioTrack resources, ignoring any exceptions during stop
             runCatching { track.stop() }
             track.release()
@@ -212,10 +244,23 @@ class AfskAudioTransmitter(
             check(written >= 0) { "AudioTrack.write(FloatArray) failed with error code $written." }
             track.play()
             val durationMs = (bufferSamples.size * 1000L) / sampleRate
-            delay(durationMs + playbackMarginMs)
+            awaitPlaybackComplete(track, bufferSamples.size, durationMs)
         } finally {
+            android.util.Log.d("AfskTx", "head=${track.playbackHeadPosition} size=${bufferSamples.size}")
             runCatching { track.stop() }
             track.release()
+        }
+    }
+
+    private suspend fun awaitPlaybackComplete(track: AudioTrack, totalFrames: Int, durationMs: Long) {
+        val timeoutMs = durationMs + playbackMarginMs
+        withTimeoutOrNull(timeoutMs) {
+            // if the playback head position is less than the total frames, it means the audio is still playing, so we wait for a short duration and check again until it completes or timeout occurs
+            while (track.playbackHeadPosition < totalFrames) {
+                // pauses the code until audio is done playing or timeout occurs
+                delay(10L)
+            }
+            delay(postDrainMs)
         }
     }
 
@@ -241,9 +286,13 @@ class AfskAudioTransmitter(
             .setTransferMode(AudioTrack.MODE_STATIC)
             .build()
 
-        check(track.state == AudioTrack.STATE_INITIALIZED) {
+        // In MODE_STATIC, a newly built AudioTrack starts in STATE_NO_STATIC_DATA until write() loads the buffer.
+        // AudioTrack states: STATE_UNINITIALIZED = 0 (actual failure), STATE_INITIALIZED = 1 (ready to play), STATE_NO_STATIC_DATA = 2 (waiting for track.write() to write audio data)
+        check(track.state != AudioTrack.STATE_UNINITIALIZED) {
+            // this code runs if the condition above is false!
+            val state = track.state
             track.release()
-            "Failed to initialize AudioTrack (sampleRate=$sampleRate, encoding=$encoding)."
+            "Failed to initialize AudioTrack (state=$state, sampleRate=$sampleRate, encoding=$encoding, bufferBytes=$bufferSizeBytes)."
         }
         return track
     }
